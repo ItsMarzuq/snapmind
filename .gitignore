@@ -14,3 +14,4 @@ uploads/
 *.db
 *.sqlite
 *.sqlite3
+Test_ss_*.png
