@@ -1,9 +1,7 @@
 'use client';
 
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ChangeEvent, DragEvent } from 'react';
 import {
-  ChangeEvent,
-  DragEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -34,7 +32,7 @@ type Shot = {
 
 type Mode = 'login' | 'register';
 type DateFilter = 'all' | 'today' | '7d' | '30d';
-type SortOrder = 'newest' | 'oldest';
+type SortOrder = 'relevance' | 'newest' | 'oldest';
 
 type EditDraft = {
   description: string;
@@ -121,7 +119,7 @@ export default function Home() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [tagFilter, setTagFilter] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('relevance');
   const [results, setResults] = useState<Shot[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
@@ -167,6 +165,17 @@ export default function Home() {
     window.addEventListener('keydown', handle);
     return () => window.removeEventListener('keydown', handle);
   }, []);
+
+  useEffect(() => {
+    if (!selected) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [selected]);
 
   useEffect(() => {
     if (
@@ -392,7 +401,7 @@ export default function Home() {
     setCategoryFilter('');
     setTagFilter('');
     setDateFilter('all');
-    setSortOrder('newest');
+    setSortOrder('relevance');
     setSelected(null);
     setError('');
     setUploadNotice('');
@@ -483,6 +492,8 @@ export default function Home() {
         matchesDateFilter(shot.created_at, dateFilter),
     )
     .sort((a, b) => {
+      if (sortOrder === 'relevance') return 0;
+
       const difference =
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
 
@@ -648,7 +659,7 @@ export default function Home() {
 
         <div className="top-actions">
           <span className="account">{email}</span>
-          <button className="ghost-button" onClick={logout}>
+          <button type="button" className="ghost-button" onClick={logout}>
             Sign out
           </button>
         </div>
@@ -657,46 +668,63 @@ export default function Home() {
       <div className="content">
         <section className="hero">
           <div className="hero-copy">
-            <div className="hero-badge">
+            <div className="hero-kicker">
               <span className="pulse-dot" />
-              Visual memory, indexed locally
+              Search by meaning, not filenames
             </div>
 
             <h1>
-              Find the screenshot
+              Your screenshots,
               <br />
-              <em>you vaguely remember.</em>
+              <em>actually searchable.</em>
             </h1>
 
             <p>
-              SnapMind reads text, understands what is visible, and lets
-              you search your screenshot library in natural language.
+              Find saved products, bookings, places, deadlines, and anything
+              else you remember seeing — even when you do not remember the
+              exact words.
             </p>
-
-            <div className="hero-stats">
-              <div>
-                <strong>{shots.length}</strong>
-                <span>screenshots</span>
-              </div>
-              <div>
-                <strong>{readyCount}</strong>
-                <span>searchable</span>
-              </div>
-              <div>
-                <strong>{categories.length}</strong>
-                <span>categories</span>
-              </div>
-            </div>
           </div>
 
-          <div className="hero-orbit" aria-hidden="true">
-            <div className="orbit-card orbit-card-one">⌕</div>
-            <div className="orbit-card orbit-card-two">▧</div>
-            <div className="orbit-core">✳</div>
+          <div className="hero-stats" aria-label="Library summary">
+            <div>
+              <strong>{shots.length}</strong>
+              <span>Saved</span>
+            </div>
+            <div>
+              <strong>{readyCount}</strong>
+              <span>Searchable</span>
+            </div>
+            <div>
+              <strong>{categories.length}</strong>
+              <span>Categories</span>
+            </div>
           </div>
         </section>
 
         <section className="search-panel">
+          <div className="search-panel-head">
+            <div>
+              <p className="eyebrow">SEARCH YOUR LIBRARY</p>
+              <p className="search-help">Describe what you remember.</p>
+            </div>
+            {hasFilters && (
+              <button
+                type="button"
+                className="clear-filters desktop-clear"
+                onClick={() => {
+                  setQuery('');
+                  setResults([]);
+                  setCategoryFilter('');
+                  setTagFilter('');
+                  setDateFilter('all');
+                }}
+              >
+                Reset
+              </button>
+            )}
+          </div>
+
           <div className="search-box">
             <span className="search-icon" aria-hidden="true">
               ⌕
@@ -717,6 +745,7 @@ export default function Home() {
 
             {query && (
               <button
+                type="button"
                 className="clear-search"
                 onClick={() => setQuery('')}
                 aria-label="Clear search"
@@ -790,6 +819,9 @@ export default function Home() {
                   setSortOrder(e.target.value as SortOrder)
                 }
               >
+                <option value="relevance">
+                  {isSearching ? 'Best match' : 'Default order'}
+                </option>
                 <option value="newest">Newest first</option>
                 <option value="oldest">Oldest first</option>
               </select>
@@ -798,7 +830,7 @@ export default function Home() {
             {hasFilters && (
               <button
                 type="button"
-                className="clear-filters"
+                className="clear-filters mobile-clear"
                 onClick={() => {
                   setQuery('');
                   setResults([]);
@@ -839,7 +871,7 @@ export default function Home() {
                 {hasFilters ? 'FILTERED SCREENSHOTS' : 'YOUR LIBRARY'}
               </p>
 
-              <div className="collection-title-row">
+              <div className="collection-title-row" aria-live="polite">
                 <h2>
                   {hasFilters
                     ? searching
@@ -864,6 +896,7 @@ export default function Home() {
             </div>
 
             <button
+              type="button"
               className="primary upload-button"
               onClick={() => picker.current?.click()}
               disabled={busy}
@@ -940,7 +973,7 @@ export default function Home() {
                     <div className="shot-image">
                       <img
                         src={shot.image_url}
-                        alt={shot.filename}
+                        alt={shot.vision_data?.description || shot.filename}
                         loading="lazy"
                       />
 
@@ -955,7 +988,7 @@ export default function Home() {
                     <div className="shot-card-body">
                       <div className="shot-title-row">
                         <span title={shot.filename}>{shot.filename}</span>
-                        <small>
+                        <small title={new Date(shot.created_at).toLocaleString()}>
                           {new Date(shot.created_at).toLocaleDateString(
                             undefined,
                             {
@@ -1069,7 +1102,7 @@ export default function Home() {
 
             <div className="modal-body">
               <div className="modal-image-wrap">
-                <img src={selected.image_url} alt={selected.filename} />
+                <img src={selected.image_url} alt={selected.vision_data?.description || selected.filename} />
               </div>
 
               <section className="info-panel">
